@@ -71,7 +71,7 @@ function buildSummarySheet(workbook, title, granularity, rows, categoryNames) {
 
 exportRouter.get("/expenses.xlsx", async (req, res) => {
   try {
-    const { rows } = await pool.query(SELECT_JOINED);
+    const { rows } = await pool.query(`${SELECT_JOINED} WHERE e.family_id = $1`, [req.user.familyId]);
 
     const categoryNameSet = new Set();
     for (const r of rows) categoryNameSet.add(r.categoryName || "Uncategorized");

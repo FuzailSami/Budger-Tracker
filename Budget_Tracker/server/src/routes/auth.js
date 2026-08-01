@@ -7,7 +7,12 @@ import { requireAuth } from "../middleware/requireAuth.js";
 export const authRouter = Router();
 
 function publicUser(row) {
-  return { id: row.id, username: row.username, displayName: row.display_name };
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    familyId: row.family_id,
+  };
 }
 
 authRouter.post("/register", async (req, res) => {
@@ -21,14 +26,40 @@ authRouter.post("/register", async (req, res) => {
       return res.status(400).json({ error: "Password must be at least 6 characters." });
     }
 
-    const { rows: countRows } = await pool.query("SELECT COUNT(*)::int AS n FROM users");
-    const userCount = countRows[0].n;
-
-    if (userCount > 0) {
-      const { rows: cfgRows } = await pool.query("SELECT invite_code FROM config WHERE id = 1");
-      const config = cfgRows[0];
-      if (!inviteCode || inviteCode.trim().toUpperCase() !== config.invite_code) {
+    let familyId;
+    if (inviteCode && inviteCode.trim()) {
+      const normalizedInviteCode = inviteCode.trim().toUpperCase();
+      const { rows: familyRows } = await pool.query(
+        "SELECT id FROM families WHERE invite_code = $1",
+        [normalizedInviteCode]
+      );
+      if (familyRows.length === 0) {
         return res.status(403).json({ error: "That invite code isn't right. Ask an existing member for the current code." });
+      }
+      familyId = familyRows[0].id;
+    } else {
+      const now = new Date().toISOString();
+      const { rows: familyRows } = await pool.query(
+        "INSERT INTO families (name, invite_code, budget_limit, period_type, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+        ["Household", generateInviteCode(), 500, "weekly", now]
+      );
+      familyId = familyRows[0].id;
+
+      const defaults = [
+        ["Food & Dining", "#A85C32", "utensils"],
+        ["Transportation", "#4C6B87", "car"],
+        ["Housing & Bills", "#7A8450", "home"],
+        ["Shopping", "#C98A2C", "shopping-bag"],
+        ["Entertainment", "#7D5570", "film"],
+        ["Health & Fitness", "#3B8482", "heart-pulse"],
+        ["Other", "#5B5B58", "more-horizontal"],
+      ];
+
+      for (const [name, color, icon] of defaults) {
+        await pool.query(
+          "INSERT INTO categories (family_id, name, color, icon, created_at) VALUES ($1, $2, $3, $4, $5)",
+          [familyId, name, color, icon, now]
+        );
       }
     }
 
@@ -41,15 +72,10 @@ authRouter.post("/register", async (req, res) => {
     const passwordHash = bcrypt.hashSync(password, 10);
     const now = new Date().toISOString();
     const { rows: inserted } = await pool.query(
-      "INSERT INTO users (username, password_hash, display_name, created_at) VALUES ($1, $2, $3, $4) RETURNING *",
-      [uname, passwordHash, displayName.trim(), now]
+      "INSERT INTO users (username, password_hash, display_name, family_id, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [uname, passwordHash, displayName.trim(), familyId, now]
     );
     const user = inserted[0];
-
-    // The very first account creates the group and gets a fresh invite code to share.
-    if (userCount === 0) {
-      await pool.query("UPDATE config SET invite_code = $1 WHERE id = 1", [generateInviteCode()]);
-    }
 
     const token = signToken(user);
     res.status(201).json({ token, user: publicUser(user) });

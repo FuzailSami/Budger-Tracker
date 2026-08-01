@@ -7,7 +7,12 @@ if (!SECRET) {
 
 export function signToken(user) {
   return jwt.sign(
-    { id: user.id, username: user.username, displayName: user.display_name },
+    {
+      id: user.id,
+      username: user.username,
+      displayName: user.display_name,
+      familyId: user.family_id,
+    },
     SECRET,
     { expiresIn: "30d" }
   );

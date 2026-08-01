@@ -15,7 +15,10 @@ function serialize(row) {
 
 configRouter.get("/", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM config WHERE id = 1");
+    const { rows } = await pool.query("SELECT budget_limit, period_type, invite_code FROM families WHERE id = $1", [req.user.familyId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Family configuration not found." });
+    }
     res.json(serialize(rows[0]));
   } catch (err) {
     console.error(err);
@@ -26,7 +29,10 @@ configRouter.get("/", async (req, res) => {
 configRouter.put("/", async (req, res) => {
   try {
     const { budgetLimit, periodType } = req.body || {};
-    const { rows } = await pool.query("SELECT * FROM config WHERE id = 1");
+    const { rows } = await pool.query("SELECT budget_limit, period_type FROM families WHERE id = $1", [req.user.familyId]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Family configuration not found." });
+    }
     const current = rows[0];
 
     const nextLimit = budgetLimit !== undefined ? Number(budgetLimit) : current.budget_limit;
@@ -40,8 +46,8 @@ configRouter.put("/", async (req, res) => {
     }
 
     const { rows: updatedRows } = await pool.query(
-      "UPDATE config SET budget_limit = $1, period_type = $2 WHERE id = 1 RETURNING *",
-      [nextLimit, nextPeriod]
+      "UPDATE families SET budget_limit = $1, period_type = $2 WHERE id = $3 RETURNING *",
+      [nextLimit, nextPeriod, req.user.familyId]
     );
     res.json(serialize(updatedRows[0]));
   } catch (err) {
@@ -53,8 +59,14 @@ configRouter.put("/", async (req, res) => {
 configRouter.post("/rotate-invite", async (req, res) => {
   try {
     const code = generateInviteCode();
-    await pool.query("UPDATE config SET invite_code = $1 WHERE id = 1", [code]);
-    res.json({ inviteCode: code });
+    const { rows } = await pool.query(
+      "UPDATE families SET invite_code = $1 WHERE id = $2 RETURNING invite_code",
+      [code, req.user.familyId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Family not found." });
+    }
+    res.json({ inviteCode: rows[0].invite_code });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Something went wrong on the server." });

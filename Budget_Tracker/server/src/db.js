@@ -33,24 +33,27 @@ export function generateInviteCode() {
 
 export async function initDb() {
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS families (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL DEFAULT 'Household',
+      budget_limit DOUBLE PRECISION NOT NULL DEFAULT 500,
+      period_type TEXT NOT NULL DEFAULT 'weekly',
+      invite_code TEXT UNIQUE NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       display_name TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS config (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      budget_limit DOUBLE PRECISION NOT NULL DEFAULT 500,
-      period_type TEXT NOT NULL DEFAULT 'weekly',
-      invite_code TEXT NOT NULL,
+      family_id INTEGER REFERENCES families(id),
       created_at TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS categories (
       id SERIAL PRIMARY KEY,
+      family_id INTEGER REFERENCES families(id),
       name TEXT NOT NULL,
       color TEXT NOT NULL,
       icon TEXT NOT NULL,
@@ -59,6 +62,7 @@ export async function initDb() {
 
     CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY,
+      family_id INTEGER REFERENCES families(id),
       amount DOUBLE PRECISION NOT NULL,
       category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
       description TEXT,
@@ -68,31 +72,68 @@ export async function initDb() {
     );
   `);
 
-  const { rows: catRows } = await pool.query("SELECT COUNT(*)::int AS n FROM categories");
-  if (catRows[0].n === 0) {
-    const now = new Date().toISOString();
-    const defaults = [
-      ["Food & Dining", "#A85C32", "utensils"],
-      ["Transportation", "#4C6B87", "car"],
-      ["Housing & Bills", "#7A8450", "home"],
-      ["Shopping", "#C98A2C", "shopping-bag"],
-      ["Entertainment", "#7D5570", "film"],
-      ["Health & Fitness", "#3B8482", "heart-pulse"],
-      ["Other", "#5B5B58", "more-horizontal"],
-    ];
-    for (const [name, color, icon] of defaults) {
-      await pool.query(
-        "INSERT INTO categories (name, color, icon, created_at) VALUES ($1, $2, $3, $4)",
-        [name, color, icon, now]
-      );
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS family_id INTEGER REFERENCES families(id)");
+  await pool.query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS family_id INTEGER REFERENCES families(id)");
+  await pool.query("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS family_id INTEGER REFERENCES families(id)");
+
+  const { rows: familyCountRows } = await pool.query("SELECT COUNT(*)::int AS n FROM families");
+  let familyId = null;
+
+  if (familyCountRows[0].n === 0) {
+    const { rows: tableRows } = await pool.query("SELECT to_regclass('public.config') AS regclass");
+    const hasLegacyConfig = Boolean(tableRows[0].regclass);
+    const { rows: cfgRows } = hasLegacyConfig
+      ? await pool.query("SELECT * FROM config WHERE id = 1")
+      : { rows: [] };
+
+    let inviteCode = generateInviteCode();
+    let budgetLimit = 500;
+    let periodType = "weekly";
+    let createdAt = new Date().toISOString();
+
+    if (cfgRows.length > 0) {
+      const cfg = cfgRows[0];
+      inviteCode = cfg.invite_code;
+      budgetLimit = cfg.budget_limit;
+      periodType = cfg.period_type;
+      createdAt = cfg.created_at;
     }
+
+    const { rows: familyRows } = await pool.query(
+      "INSERT INTO families (name, invite_code, budget_limit, period_type, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+      ["Household", inviteCode, budgetLimit, periodType, createdAt]
+    );
+    familyId = familyRows[0].id;
+
+    await pool.query("UPDATE users SET family_id = $1 WHERE family_id IS NULL", [familyId]);
+    await pool.query("UPDATE categories SET family_id = $1 WHERE family_id IS NULL", [familyId]);
+    await pool.query("UPDATE expenses SET family_id = $1 WHERE family_id IS NULL", [familyId]);
   }
 
-  const { rows: configRows } = await pool.query("SELECT * FROM config WHERE id = 1");
-  if (configRows.length === 0) {
-    await pool.query(
-      "INSERT INTO config (id, budget_limit, period_type, invite_code, created_at) VALUES (1, 500, 'weekly', $1, $2)",
-      [generateInviteCode(), new Date().toISOString()]
-    );
+  if (!familyId) {
+    const { rows: familyRows } = await pool.query("SELECT id FROM families ORDER BY id ASC LIMIT 1");
+    familyId = familyRows[0]?.id || null;
+  }
+
+  if (familyId !== null) {
+    const { rows: catRows } = await pool.query("SELECT COUNT(*)::int AS n FROM categories WHERE family_id = $1", [familyId]);
+    if (catRows[0].n === 0) {
+      const now = new Date().toISOString();
+      const defaults = [
+        ["Food & Dining", "#A85C32", "utensils"],
+        ["Transportation", "#4C6B87", "car"],
+        ["Housing & Bills", "#7A8450", "home"],
+        ["Shopping", "#C98A2C", "shopping-bag"],
+        ["Entertainment", "#7D5570", "film"],
+        ["Health & Fitness", "#3B8482", "heart-pulse"],
+        ["Other", "#5B5B58", "more-horizontal"],
+      ];
+      for (const [name, color, icon] of defaults) {
+        await pool.query(
+          "INSERT INTO categories (family_id, name, color, icon, created_at) VALUES ($1, $2, $3, $4, $5)",
+          [familyId, name, color, icon, now]
+        );
+      }
+    }
   }
 }

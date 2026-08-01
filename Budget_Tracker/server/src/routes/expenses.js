@@ -38,7 +38,10 @@ function serialize(row) {
 
 expensesRouter.get("/", async (req, res) => {
   try {
-    const { rows } = await pool.query(`${SELECT_JOINED} ORDER BY e.date DESC, e.created_at DESC`);
+    const { rows } = await pool.query(
+      `${SELECT_JOINED} WHERE e.family_id = $1 ORDER BY e.date DESC, e.created_at DESC`,
+      [req.user.familyId]
+    );
     res.json(rows.map(serialize));
   } catch (err) {
     console.error(err);
@@ -55,7 +58,10 @@ expensesRouter.post("/", async (req, res) => {
     if (!description || !description.trim()) return res.status(400).json({ error: "A description of what it was for is required." });
     if (categoryId === undefined || categoryId === null) return res.status(400).json({ error: "A category is required." });
 
-    const { rows: catRows } = await pool.query("SELECT id FROM categories WHERE id = $1", [Number(categoryId)]);
+    const { rows: catRows } = await pool.query(
+      "SELECT id FROM categories WHERE id = $1 AND family_id = $2",
+      [Number(categoryId), req.user.familyId]
+    );
     if (catRows.length === 0) return res.status(400).json({ error: "Pick a valid category." });
     const catId = catRows[0].id;
 
@@ -64,7 +70,7 @@ expensesRouter.post("/", async (req, res) => {
       [amt, catId, description.trim(), date, req.user.id, new Date().toISOString()]
     );
 
-    const { rows } = await pool.query(`${SELECT_JOINED} WHERE e.id = $1`, [inserted[0].id]);
+    const { rows } = await pool.query(`${SELECT_JOINED} WHERE e.id = $1 AND e.family_id = $2`, [inserted[0].id, req.user.familyId]);
     res.status(201).json(serialize(rows[0]));
   } catch (err) {
     console.error(err);
@@ -75,7 +81,7 @@ expensesRouter.post("/", async (req, res) => {
 expensesRouter.delete("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { rows } = await pool.query("SELECT id FROM expenses WHERE id = $1", [id]);
+    const { rows } = await pool.query("SELECT id FROM expenses WHERE id = $1 AND family_id = $2", [id, req.user.familyId]);
     if (rows.length === 0) return res.status(404).json({ error: "Expense not found." });
     await pool.query("DELETE FROM expenses WHERE id = $1", [id]);
     res.json({ success: true });

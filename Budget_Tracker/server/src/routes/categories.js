@@ -12,7 +12,10 @@ const ALLOWED_ICONS = new Set([
 
 categoriesRouter.get("/", async (req, res) => {
   try {
-    const { rows } = await pool.query("SELECT * FROM categories ORDER BY name ASC");
+    const { rows } = await pool.query(
+      "SELECT * FROM categories WHERE family_id = $1 ORDER BY name ASC",
+      [req.user.familyId]
+    );
     res.json(rows.map((r) => ({ id: r.id, name: r.name, color: r.color, icon: r.icon })));
   } catch (err) {
     console.error(err);
@@ -28,8 +31,8 @@ categoriesRouter.post("/", async (req, res) => {
     const safeColor = /^#[0-9A-Fa-f]{6}$/.test(color || "") ? color : "#5B5B58";
 
     const { rows: existingRows } = await pool.query(
-      "SELECT id FROM categories WHERE LOWER(name) = LOWER($1)",
-      [name.trim()]
+      "SELECT id FROM categories WHERE family_id = $1 AND LOWER(name) = LOWER($2)",
+      [req.user.familyId, name.trim()]
     );
     if (existingRows.length > 0) return res.status(409).json({ error: "A category with that name already exists." });
 
@@ -50,7 +53,7 @@ categoriesRouter.delete("/:id", async (req, res) => {
     const id = Number(req.params.id);
     const { reassignTo } = req.body || {};
 
-    const { rows } = await pool.query("SELECT * FROM categories WHERE id = $1", [id]);
+    const { rows } = await pool.query("SELECT * FROM categories WHERE id = $1 AND family_id = $2", [id, req.user.familyId]);
     if (rows.length === 0) return res.status(404).json({ error: "Category not found." });
 
     const { rows: countRows } = await pool.query("SELECT COUNT(*)::int AS n FROM categories");
@@ -75,13 +78,13 @@ categoriesRouter.delete("/:id", async (req, res) => {
       if (targetId === id) {
         return res.status(400).json({ error: "Pick a different category to move those expenses to." });
       }
-      const { rows: targetRows } = await pool.query("SELECT id FROM categories WHERE id = $1", [targetId]);
+      const { rows: targetRows } = await pool.query("SELECT id FROM categories WHERE id = $1 AND family_id = $2", [targetId, req.user.familyId]);
       if (targetRows.length === 0) return res.status(400).json({ error: "That category doesn't exist." });
 
       await pool.query("UPDATE expenses SET category_id = $1 WHERE category_id = $2", [targetId, id]);
     }
 
-    await pool.query("DELETE FROM categories WHERE id = $1", [id]);
+    await pool.query("DELETE FROM categories WHERE id = $1 AND family_id = $2", [id, req.user.familyId]);
     res.json({ success: true });
   } catch (err) {
     console.error(err);
