@@ -154,8 +154,10 @@ export function periodShortLabel(key, periodType) {
   return new Date(Date.UTC(parseInt(y), parseInt(m) - 1, 1)).toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
 }
 
-export const money = (n) =>
-  (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const money = (n) => {
+  const value = Number.isFinite(Number(n)) ? Number(Number(n).toFixed(2)) : 0;
+  return (value < 0 ? "-$" : "$") + Math.abs(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
 
 export function Mark({ size = 28 }) {
   return (

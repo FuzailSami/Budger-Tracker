@@ -36,7 +36,7 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS families (
       id SERIAL PRIMARY KEY,
       name TEXT NOT NULL DEFAULT 'Household',
-      budget_limit DOUBLE PRECISION NOT NULL DEFAULT 500,
+      budget_limit NUMERIC(10,2) NOT NULL DEFAULT 500,
       period_type TEXT NOT NULL DEFAULT 'weekly',
       invite_code TEXT UNIQUE NOT NULL,
       created_at TEXT NOT NULL
@@ -63,7 +63,7 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY,
       family_id INTEGER REFERENCES families(id),
-      amount DOUBLE PRECISION NOT NULL,
+      amount NUMERIC(10,2) NOT NULL,
       category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
       description TEXT,
       date TEXT NOT NULL,
@@ -75,6 +75,8 @@ export async function initDb() {
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS family_id INTEGER REFERENCES families(id)");
   await pool.query("ALTER TABLE categories ADD COLUMN IF NOT EXISTS family_id INTEGER REFERENCES families(id)");
   await pool.query("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS family_id INTEGER REFERENCES families(id)");
+  await pool.query("ALTER TABLE expenses ALTER COLUMN amount TYPE NUMERIC(10,2) USING amount::numeric(10,2)");
+  await pool.query("ALTER TABLE families ALTER COLUMN budget_limit TYPE NUMERIC(10,2) USING budget_limit::numeric(10,2)");
 
   const { rows: familyCountRows } = await pool.query("SELECT COUNT(*)::int AS n FROM families");
   let familyId = null;

@@ -52,9 +52,10 @@ export default function LedgerTab({
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const amt = parseFloat(amount);
+    const amt = Number.parseFloat(amount);
+    const normalizedAmount = Number.isFinite(amt) ? Number(amt.toFixed(2)) : null;
     const missing = [];
-    if (!amt || amt <= 0) missing.push("an amount above $0");
+    if (!normalizedAmount || normalizedAmount <= 0) missing.push("an amount above $0");
     if (!date) missing.push("a date");
     if (!categoryId) missing.push("a category");
     if (!description.trim()) missing.push("what it was for");
@@ -65,7 +66,7 @@ export default function LedgerTab({
     setError("");
     setBusy(true);
     try {
-      await onAddExpense({ amount: amt, categoryId, description: description.trim(), date });
+      await onAddExpense({ amount: normalizedAmount, categoryId, description: description.trim(), date });
       setAmount("");
       setDescription("");
       setJustAdded(true);

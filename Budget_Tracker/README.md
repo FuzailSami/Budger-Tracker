@@ -62,21 +62,22 @@ npm run dev
 Open `localhost:5173` and register the first account — it becomes the
 group owner and shows an invite code in Settings to share.
 
-## Deploying (Render — free)
+## Deploying (Vercel)
 
 1. Push the repo to GitHub.
-2. **Backend**: Render → New → Web Service → root dir `server`, build
-   `npm install`, start `npm start`, Free instance. Env vars: `JWT_SECRET`,
-   `DATABASE_URL` (Supabase string), `CORS_ORIGIN` (set after step 3).
-3. **Frontend**: Render → New → Static Site → root dir `client`, build
-   `npm install && npm run build`, publish dir `dist`. Env var:
-   `VITE_API_URL` = your backend URL + `/api`.
-4. Back on the backend service, set `CORS_ORIGIN` to the frontend's real
-   URL — saves and redeploys automatically.
+2. In Vercel, import the repository and set the root directory to the repo root.
+3. Add environment variables for the app:
+   - `VITE_API_URL=/api` (frontend)
+   - `JWT_SECRET` (any long string, server)
+   - `DATABASE_URL` (your Postgres connection string, server)
+   - `CORS_ORIGIN` (set to your Vercel frontend URL, for example `https://your-app.vercel.app`, server)
+4. Vercel will build the client and serve the API from the `api` folder automatically.
 5. Visit the frontend, register, and grab the invite code from Settings.
 
-Free tier note: the backend sleeps after 15 min idle and takes ~30–60s to
-wake on the next request.
+### Notes
+
+- The API routes are mounted under `/api` so the frontend can call them from the same domain.
+- The Express server now supports both local development and Vercel serverless execution.
 
 ## Notes
 

@@ -28,7 +28,7 @@ export default function HistoryTab({ config, grouped, currentKey, historyKeys, o
       return {
         key: k,
         label: periodShortLabel(k, periodType),
-        total: Math.round(total * 100) / 100,
+        total: Number(total.toFixed(2)),
         isCurrent: k === currentKey,
         isOver: total > limit,
       };

@@ -37,8 +37,8 @@ categoriesRouter.post("/", async (req, res) => {
     if (existingRows.length > 0) return res.status(409).json({ error: "A category with that name already exists." });
 
     const { rows } = await pool.query(
-      "INSERT INTO categories (name, color, icon, created_at) VALUES ($1, $2, $3, $4) RETURNING *",
-      [name.trim(), safeColor, safeIcon, new Date().toISOString()]
+      "INSERT INTO categories (family_id, name, color, icon, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [req.user.familyId, name.trim(), safeColor, safeIcon, new Date().toISOString()]
     );
     const row = rows[0];
     res.status(201).json({ id: row.id, name: row.name, color: row.color, icon: row.icon });

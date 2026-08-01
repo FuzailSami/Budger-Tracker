@@ -25,7 +25,7 @@ const SELECT_JOINED = `
 function serialize(row) {
   return {
     id: row.id,
-    amount: row.amount,
+    amount: Number.parseFloat(String(row.amount)),
     description: row.description || "",
     date: row.date,
     createdAt: row.createdAt,
@@ -52,8 +52,11 @@ expensesRouter.get("/", async (req, res) => {
 expensesRouter.post("/", async (req, res) => {
   try {
     const { amount, categoryId, description, date } = req.body || {};
-    const amt = Number(amount);
-    if (!(amt > 0)) return res.status(400).json({ error: "Amount must be greater than 0." });
+    const rawAmount = Number(amount);
+    if (!Number.isFinite(rawAmount) || !(rawAmount > 0)) {
+      return res.status(400).json({ error: "Amount must be greater than 0." });
+    }
+    const amt = Number(rawAmount.toFixed(2));
     if (!date) return res.status(400).json({ error: "Date is required." });
     if (!description || !description.trim()) return res.status(400).json({ error: "A description of what it was for is required." });
     if (categoryId === undefined || categoryId === null) return res.status(400).json({ error: "A category is required." });
@@ -66,8 +69,8 @@ expensesRouter.post("/", async (req, res) => {
     const catId = catRows[0].id;
 
     const { rows: inserted } = await pool.query(
-      "INSERT INTO expenses (amount, category_id, description, date, user_id, created_at) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id",
-      [amt, catId, description.trim(), date, req.user.id, new Date().toISOString()]
+      "INSERT INTO expenses (amount, category_id, description, date, user_id, family_id, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id",
+      [amt, catId, description.trim(), date, req.user.id, req.user.familyId, new Date().toISOString()]
     );
 
     const { rows } = await pool.query(`${SELECT_JOINED} WHERE e.id = $1 AND e.family_id = $2`, [inserted[0].id, req.user.familyId]);
