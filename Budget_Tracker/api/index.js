@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import serverless from "serverless-http";
 import { initDb } from "../server/src/db.js";
 import { authRouter } from "../server/src/routes/auth.js";
 import { configRouter } from "../server/src/routes/config.js";
@@ -48,5 +47,4 @@ app.use(async (req, res, next) => {
   }
 });
 
-export default serverless(app);
-export const handler = serverless(app);
+export default app;
