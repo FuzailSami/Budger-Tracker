@@ -5,7 +5,8 @@
   "scripts": {
     "build": "npm --prefix client run build",
     "dev": "npm --prefix client run dev",
-    "start": "node api/index.js"
+    "start": "node api/index.js",
+    "check:deps": "node scripts/check-deps.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.1",

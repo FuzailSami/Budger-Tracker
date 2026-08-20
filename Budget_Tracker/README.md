@@ -65,31 +65,50 @@ group owner and shows an invite code in Settings to share.
 ## Deploying (Vercel)
 
 1. Push the repo to GitHub.
-2. In Vercel, import the repository. If the repo has this project nested in
-   a subfolder (check with `git ls-files | head`), set **Root Directory**
-   to that subfolder (e.g. `Budget_Tracker`) in the import screen — not the
-   repo root.
-3. Add environment variables for the app (Vercel lets you tick Production /
+2. In Vercel, import the repository. **Root Directory must be set to
+   `Budget_Tracker`** — the repo has an extra nesting level, so importing at
+   the repo root will fail to find `vercel.json`.
+3. Framework Preset: **Other**. The Build Command / Output Directory / Install
+   Command fields in the Vercel UI are ignored — `vercel.json` in this
+   project uses the legacy `builds` property, which controls the build
+   itself, so leave those fields as-is rather than trying to configure them.
+4. Add environment variables for the app (Vercel lets you tick Production /
    Preview / Development separately when adding a variable):
-   - `VITE_API_URL=/api` — all environments
-   - `JWT_SECRET` — any long string, same value for all environments
-   - `DATABASE_URL` — your Postgres connection string, same value for all
-     environments
+   - `DATABASE_URL` — your Postgres connection string. Use the Supabase
+     **Transaction pooler** string (port 6543) — not Session pooler, and not
+     "Direct connection". Direct connection is IPv6-only and will fail on
+     Vercel with `ENETUNREACH`.
+   - `JWT_SECRET` — any long string, same value for all environments.
+   - `VITE_API_URL=/api` — all environments. This is a Vite build-time
+     variable: it gets baked into the built client bundle, not read at
+     runtime. If you change it, you must trigger a fresh deploy — saving the
+     env var alone has no effect until the next build.
    - `CORS_ORIGIN` — your Vercel frontend URL, e.g. `https://your-app.vercel.app`
      (not required for correctness since the frontend and API share an
-     origin on Vercel, but keep it set for local/dev use)
+     origin on Vercel, but keep it set for local/dev use).
+   - `RUN_MIGRATIONS` — set to `true` when you need `initDb()` (table
+     creation/ALTERs) to run. Leave unset/`false` for normal deploys: on
+     Vercel `initDb()` would otherwise run on every serverless cold start
+     instead of once at boot like it did on Render, adding several Supabase
+     round trips to first-request latency. Set it to `true` temporarily after
+     a schema change, then unset it again.
 
    This means Preview Deployments (see below) share the same database as
    production. That's fine for casual use. If you want preview testing
    fully isolated from real data, see the **optional staging setup** below
    instead of the values above.
-4. Vercel will build the client and serve the API from the `api` folder automatically.
-5. Visit the frontend, register, and grab the invite code from Settings.
+5. Vercel will build the client and serve the API from the `api` folder automatically.
+6. Visit the frontend, register, and grab the invite code from Settings.
 
 ### Notes
 
 - The API routes are mounted under `/api` so the frontend can call them from the same domain.
 - The Express server now supports both local development and Vercel serverless execution.
+- Serverless functions resolve dependencies from the root `Budget_Tracker/package.json`,
+  not `server/package.json`. Any dependency you add to `server/package.json`
+  must also be added to `Budget_Tracker/package.json`, or the function will
+  crash at runtime with `Cannot find module`. Run `npm run check:deps` to
+  verify the two stay in sync.
 
 ### Safe workflow: testing changes without affecting live users
 
