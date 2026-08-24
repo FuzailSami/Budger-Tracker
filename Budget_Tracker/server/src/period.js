@@ -15,7 +15,11 @@ export function periodKey(dateStr, granularity) {
   if (granularity === "yearly") return String(y);
   if (granularity === "monthly") return `${y}-${String(m).padStart(2, "0")}`;
   const utc = new Date(Date.UTC(y, m - 1, d));
-  utc.setUTCDate(utc.getUTCDate() - utc.getUTCDay());
+  // Monday-start weeks: getUTCDay() is 0 for Sunday, so map Sunday to 6
+  // and every other day to (day - 1). A plain (getUTCDay() - 1) would
+  // shift Sunday FORWARD into the following week.
+  const dayOffset = (utc.getUTCDay() + 6) % 7;
+  utc.setUTCDate(utc.getUTCDate() - dayOffset);
   return `${utc.getUTCFullYear()}-${String(utc.getUTCMonth() + 1).padStart(2, "0")}-${String(utc.getUTCDate()).padStart(2, "0")}`;
 }
 
