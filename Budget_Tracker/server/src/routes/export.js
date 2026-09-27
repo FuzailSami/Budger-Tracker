@@ -17,7 +17,6 @@ const SELECT_JOINED = `
   FROM expenses e
   LEFT JOIN categories c ON c.id = e.category_id
   LEFT JOIN users u ON u.id = e.user_id
-  ORDER BY e.date ASC, e.created_at ASC
 `;
 
 function buildSummarySheet(workbook, title, granularity, rows, categoryNames) {
@@ -71,7 +70,7 @@ function buildSummarySheet(workbook, title, granularity, rows, categoryNames) {
 
 exportRouter.get("/expenses.xlsx", async (req, res) => {
   try {
-    const { rows } = await pool.query(`${SELECT_JOINED} WHERE e.family_id = $1`, [req.user.familyId]);
+    const { rows } = await pool.query(`${SELECT_JOINED} WHERE e.family_id = $1 ORDER BY e.date ASC, e.created_at ASC`, [req.user.familyId]);
 
     const categoryNameSet = new Set();
     for (const r of rows) categoryNameSet.add(r.categoryName || "Uncategorized");
